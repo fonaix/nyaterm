@@ -4254,6 +4254,15 @@
     "keywordHighlightMatchOptions": "Options de correspondance"
   },
   "sshAuth": {
+    "securityKeyTitle": "Authentification par clé de sécurité",
+    "securityKeyQueued": "En attente de la fin d’une autre opération sur une clé de sécurité.",
+    "securityKeyTouch": "Branchez votre clé de sécurité et touchez-la pour confirmer. Si plusieurs clés sont branchées, touchez celle à utiliser.",
+    "securityKeySystem": "Terminez la vérification dans la fenêtre Sécurité Windows.",
+    "securityKeyPin": "Code PIN de la clé de sécurité",
+    "securityKeyPinRequired": "Saisissez le PIN du périphérique. Il diffère de la phrase secrète du fichier de clé et ne sera pas enregistré.",
+    "securityKeyPinInvalid": "PIN incorrect. Réessayez ou annulez pour éviter de bloquer le périphérique.",
+    "securityKeyImportHelp": "Les fichiers OpenSSH ED25519-SK et ECDSA-SK contiennent des références aux clés matérielles. La connexion nécessite le périphérique correspondant. La phrase secrète du fichier et le PIN sont distincts.",
+    "securityKeyForwardingHelp": "Les clés matérielles enregistrées servent uniquement à authentifier les connexions et ne sont pas exposées par le transfert d’agent.",
     "authenticationMethod": "Méthode d’authentification",
     "catalogLoadFailed": "Impossible de charger les identifiants enregistrés. Actualisez pour réessayer.",
     "editKey": "Modifier la clé",

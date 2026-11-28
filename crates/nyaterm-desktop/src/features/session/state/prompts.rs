@@ -249,6 +249,18 @@ impl SessionPromptState {
     /// Agent 成功或取消后由 transport 调用 `finish`，此处把已解决请求从
     /// UI 活动槽位移除，再允许队列中的下一个请求展示。
     pub(in crate::features) fn reconcile_agent(&mut self) -> bool {
+        // A queued operation must not hide the operation currently holding the
+        // application-wide hardware lease, or its PIN prompt.
+        if self.active_agent_prompt.as_ref().is_some_and(|request| {
+            request.snapshot().prompt.phase
+                == nyaterm_transport::SshAgentPromptPhase::SecurityKeyQueued
+        }) && (self.agent_prompts.has_ready() || self.credential_prompts.has_pending())
+        {
+            if let Some(request) = self.active_agent_prompt.take() {
+                self.agent_prompts.requeue(request);
+            }
+            return true;
+        }
         if self
             .active_agent_prompt
             .as_ref()
@@ -456,6 +468,12 @@ impl SessionPromptState {
                 .as_ref()
                 .is_some_and(|prompt| prompt.id == id)
             {
+                if let Some(state) = self.active_credential_prompt.as_mut()
+                    && state.prompt.kind
+                        == nyaterm_transport::SshCredentialPromptKind::SecurityKeyPin
+                {
+                    zeroize::Zeroize::zeroize(&mut state.value);
+                }
                 self.active_credential_prompt = None;
                 changed = true;
             }
@@ -482,6 +500,11 @@ impl SessionPromptState {
     }
 
     pub(in crate::features) fn activate_next_agent(&mut self) -> Option<String> {
+        if (self.credential_prompts.has_pending() || self.active_credential_prompt.is_some())
+            && !self.agent_prompts.has_ready()
+        {
+            return None;
+        }
         if self.active_agent_prompt.is_some() || !self.agent_prompts.has_pending() {
             return None;
         }

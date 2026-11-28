@@ -4254,6 +4254,15 @@
     "keywordHighlightMatchOptions": "匹配オプション"
   },
   "sshAuth": {
+    "securityKeyTitle": "セキュリティキー認証",
+    "securityKeyQueued": "別のセキュリティキー操作の完了を待っています。",
+    "securityKeyTouch": "セキュリティキーを接続してタッチしてください。複数ある場合は使用するキーにタッチしてください。",
+    "securityKeySystem": "Windows セキュリティのダイアログで認証を完了してください。",
+    "securityKeyPin": "セキュリティキーの PIN",
+    "securityKeyPinRequired": "デバイスの PIN を入力してください。キーファイルのパスフレーズとは異なり、保存されません。",
+    "securityKeyPinInvalid": "PIN が正しくありません。再入力するか、ロックを避けるためキャンセルしてください。",
+    "securityKeyImportHelp": "OpenSSH ED25519-SK / ECDSA-SK ファイルにはハードウェアキーの参照が含まれます。接続には対応するデバイスが必要です。ファイルのパスフレーズとデバイスの PIN は別です。",
+    "securityKeyForwardingHelp": "保存したハードウェアキーは接続認証専用です。エージェント転送では公開されません。",
     "authenticationMethod": "認証方法",
     "catalogLoadFailed": "保存済みの認証情報を読み込めませんでした。更新して再試行してください。",
     "editKey": "鍵を編集",

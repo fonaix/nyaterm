@@ -303,6 +303,7 @@ impl NyaTermApp {
             username: parsed.username,
             password: None,
             key_auth: None,
+            security_keys: Some(self.session.security_keys.clone()),
             agent_auth: false,
             agent_endpoint: Default::default(),
             agent_forwarding: false,

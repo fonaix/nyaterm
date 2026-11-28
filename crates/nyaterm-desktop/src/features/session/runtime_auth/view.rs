@@ -460,7 +460,9 @@ fn authentication_notice(reason: SshCredentialPromptReason) -> Option<&'static s
         SshCredentialPromptReason::DockerElevation => Some("sshAuth.dockerElevation"),
         SshCredentialPromptReason::KeyPassphraseRequired => Some("sshAuth.keyPassphraseRequired"),
         SshCredentialPromptReason::KeyPassphraseRejected => Some("sshAuth.keyPassphraseRejected"),
-        SshCredentialPromptReason::MissingPassword
+        SshCredentialPromptReason::SecurityKeyPinRequired
+        | SshCredentialPromptReason::SecurityKeyPinInvalid
+        | SshCredentialPromptReason::MissingPassword
         | SshCredentialPromptReason::KeyboardInteractive => None,
     }
 }

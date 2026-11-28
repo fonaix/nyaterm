@@ -70,3 +70,21 @@ ZfG1KaT0PtFDJ/XFSqtiAAAAEHVzZXJAZXhhbXBsZS5jb20BAgMEBQ==
         }
     }
 }
+
+#[cfg(test)]
+mod security_key_tests {
+    use super::derive_public_key_for_copy;
+    use ssh_key::{LineEnding, PrivateKey, private::SkEd25519, public};
+
+    #[test]
+    fn imported_hardware_reference_exposes_its_public_key_without_device_access() {
+        let public_key = public::Ed25519PublicKey([41; 32]);
+        let key = PrivateKey::from(
+            SkEd25519::new(public::SkEd25519::new(public_key, "ssh:"), 1, vec![9; 32]).unwrap(),
+        );
+        let pem = key.to_openssh(LineEnding::LF).unwrap();
+        let public = derive_public_key_for_copy(&pem).unwrap();
+        assert!(public.starts_with("sk-ssh-ed25519@openssh.com "));
+        assert_eq!(public, key.public_key().to_openssh().unwrap());
+    }
+}

@@ -43,6 +43,7 @@ pub(in crate::features) struct SessionFeatureState {
     pub(in crate::features) unsupported_restore_tabs: Vec<nyaterm_core::RestorableOpenTab>,
     pub(in crate::features) notices: SessionNoticeState,
     manager: Arc<SessionManager>,
+    pub(in crate::features) security_keys: Arc<nyaterm_transport::security_key::SecurityKeyService>,
     ssh_connections: SshConnectionPool,
     event_bridge: SessionEventBridge,
     pub(super) start: SessionStartFeatureState,
@@ -125,6 +126,7 @@ impl SessionFeatureState {
 
     pub(in crate::features) fn new(
         manager: Arc<SessionManager>,
+        security_keys: Arc<nyaterm_transport::security_key::SecurityKeyService>,
         ssh_connections: SshConnectionPool,
         event_bridge: SessionEventBridge,
         otp_provider: Arc<NativeOtpProvider>,
@@ -133,6 +135,7 @@ impl SessionFeatureState {
         Self {
             unsupported_restore_tabs: Vec::new(),
             manager,
+            security_keys,
             ssh_connections,
             event_bridge,
             start: SessionStartFeatureState::new(),

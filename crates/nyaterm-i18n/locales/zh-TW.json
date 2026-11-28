@@ -4254,6 +4254,15 @@
     "keywordHighlightMatchOptions": "匹配選項"
   },
   "sshAuth": {
+    "securityKeyTitle": "安全金鑰驗證",
+    "securityKeyQueued": "正在等待其他安全金鑰操作完成。",
+    "securityKeyTouch": "請插入並觸碰安全金鑰確認；連接多個裝置時，觸碰要使用的裝置。",
+    "securityKeySystem": "請在 Windows 安全性對話方塊中完成驗證。",
+    "securityKeyPin": "安全金鑰 PIN",
+    "securityKeyPinRequired": "請輸入裝置 PIN。它不同於金鑰檔案密碼，且不會被儲存。",
+    "securityKeyPinInvalid": "裝置 PIN 錯誤。請重新輸入，或取消以避免裝置鎖定。",
+    "securityKeyImportHelp": "OpenSSH ED25519-SK 與 ECDSA-SK 檔案儲存硬體金鑰參照。匯入後需使用對應裝置連線；檔案密碼與裝置 PIN 相互獨立。",
+    "securityKeyForwardingHelp": "已儲存的硬體金鑰僅用於連線驗證，不透過 agent 轉送提供。",
     "authenticationMethod": "驗證方式",
     "catalogLoadFailed": "無法載入已儲存的憑證，請重新整理後再試。",
     "editKey": "編輯金鑰",

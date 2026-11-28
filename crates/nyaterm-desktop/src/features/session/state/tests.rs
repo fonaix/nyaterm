@@ -933,6 +933,7 @@ fn session_state_with_runtime(
     let focus = || cx.update(|cx| cx.focus_handle());
     SessionFeatureState::new(
         manager,
+        Default::default(),
         ssh_connections,
         event_bridge,
         test_otp_provider(root),
@@ -1361,6 +1362,7 @@ fn session_state_owns_live_runtime_and_initializes_transient_state() {
     let otp_provider = test_otp_provider(test_dir.path());
     let mut sessions = SessionFeatureState::new(
         Arc::clone(&manager),
+        Default::default(),
         SshConnectionPool::default(),
         event_bridge,
         Arc::clone(&otp_provider),

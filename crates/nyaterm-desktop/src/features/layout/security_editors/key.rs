@@ -101,6 +101,12 @@ impl NyaTermApp {
             .flex()
             .flex_col()
             .gap_2()
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(palette.text_muted))
+                    .child(t!("sshAuth.securityKeyImportHelp")),
+            )
             .track_focus(self.security.key_editor_focus())
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 this.handle_security_key_editor_key_down(event, window, cx);

@@ -66,6 +66,7 @@ pub mod mosh;
 pub mod network_route;
 pub mod networktools;
 pub mod protocol_transfer;
+pub mod security_key;
 pub mod ssh_channel;
 pub mod ssh_services;
 #[cfg(test)]

@@ -988,7 +988,8 @@ fn ssh_forwarding(
                                                             .min_w_0()
                                                             .text_xs()
                                                             .text_color(rgb(palette.text))
-                                                            .child(t!("dialog.sshAgentStoredKeysSource")),
+                                                            .child(t!("dialog.sshAgentStoredKeysSource"))
+                                                            .child(div().text_xs().text_color(rgb(palette.text_muted)).child(t!("sshAuth.securityKeyForwardingHelp"))),
                                                     )
                                                     .child(crate::features::pages::settings::settings_switch(
                                                         palette,

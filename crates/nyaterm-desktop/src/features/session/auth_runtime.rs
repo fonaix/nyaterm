@@ -792,6 +792,7 @@ pub(in crate::features) struct AgentPromptRequest {
     pub(in crate::features) prompt: SshAgentPrompt,
     pub(in crate::features) response_tx: mpsc::Sender<SshAgentPromptAction>,
     _ui_lease: AgentPromptUiLease,
+    pub(in crate::features) native_parent: Arc<std::sync::atomic::AtomicUsize>,
     state: Arc<Mutex<AgentPromptSnapshot>>,
 }
 
@@ -867,6 +868,7 @@ pub(in crate::features) struct AgentPromptSession {
     changed: Arc<AtomicBool>,
     wake: Option<EventWake>,
     finished: AtomicBool,
+    native_parent: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl AgentPromptSession {
@@ -880,6 +882,37 @@ impl AgentPromptSession {
 }
 
 impl TransportSshAgentPromptRequest for AgentPromptSession {
+    fn try_action(&self) -> Result<Option<SshAgentPromptAction>, String> {
+        match self
+            .response_rx
+            .lock()
+            .map_err(|_| "prompt response poisoned".to_string())?
+            .try_recv()
+        {
+            Ok(action) => Ok(Some(action)),
+            Err(mpsc::TryRecvError::Empty) => Ok(None),
+            Err(mpsc::TryRecvError::Disconnected) => Ok(Some(SshAgentPromptAction::Cancel)),
+        }
+    }
+    fn native_parent_window(&self) -> Option<usize> {
+        let handle = self.native_parent.load(Ordering::Acquire);
+        (handle != 0).then_some(handle)
+    }
+    fn update_pending(&self, prompt: &SshAgentPrompt) -> Result<(), String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "prompt state poisoned".to_string())?;
+        if !self.finished.load(Ordering::Acquire) && state.state != AgentPromptState::Resolved {
+            state.prompt = prompt.clone();
+            self.changed.store(true, Ordering::Release);
+            if let Some(wake) = &self.wake {
+                wake.signal(ANY_INTEREST);
+            }
+        }
+        Ok(())
+    }
+
     fn wait_action(&self) -> Result<SshAgentPromptAction, String> {
         self.wait_action_with_timeout(Duration::from_secs(300))
     }
@@ -991,11 +1024,13 @@ impl AgentPromptBroker {
             prompt: prompt.clone(),
             state: AgentPromptState::Pending,
         }));
+        let native_parent = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let request = AgentPromptRequest {
             id: agent_prompt_id(),
             prompt: prompt.clone(),
             response_tx: response_tx.clone(),
             _ui_lease: AgentPromptUiLease::new(&response_tx),
+            native_parent: native_parent.clone(),
             state: Arc::clone(&state),
         };
         let id = request.id.clone();
@@ -1014,13 +1049,36 @@ impl AgentPromptBroker {
             changed: Arc::clone(&self.changed),
             wake: self.wake_snapshot(),
             finished: AtomicBool::new(false),
+            native_parent,
         }))
     }
 
+    pub(in crate::features) fn has_ready(&self) -> bool {
+        self.pending.lock().ok().is_some_and(|queue| {
+            queue.iter().any(|request| {
+                !request.is_resolved()
+                    && request.snapshot().prompt.phase
+                        != nyaterm_transport::SshAgentPromptPhase::SecurityKeyQueued
+            })
+        })
+    }
+    pub(in crate::features) fn requeue(&self, request: AgentPromptRequest) {
+        if let Ok(mut pending) = self.pending.lock() {
+            pending.push_back(request);
+        }
+    }
     pub(in crate::features) fn pop_pending(&self) -> Option<AgentPromptRequest> {
         let mut pending = self.pending.lock().ok()?;
         loop {
-            let request = pending.pop_front()?;
+            let index = pending
+                .iter()
+                .position(|request| {
+                    !request.is_resolved()
+                        && request.snapshot().prompt.phase
+                            != nyaterm_transport::SshAgentPromptPhase::SecurityKeyQueued
+                })
+                .unwrap_or(0);
+            let request = pending.remove(index)?;
             if !request.is_resolved() {
                 return Some(request);
             }
@@ -1329,3 +1387,74 @@ mod attempt_cancellation_tests {
 
 #[cfg(test)]
 mod runtime_authentication_tests;
+
+#[cfg(test)]
+mod hardware_prompt_tests {
+    use super::{AgentPromptBroker, AgentPromptState};
+    use nyaterm_transport::{
+        SshAgentPrompt, SshAgentPromptAction, SshAgentPromptPhase, SshAgentPromptRequest,
+    };
+
+    fn prompt(phase: SshAgentPromptPhase) -> SshAgentPrompt {
+        SshAgentPrompt {
+            host: "fixture.invalid".into(),
+            port: 22,
+            username: "fixture".into(),
+            connection_name: "fixture".into(),
+            phase,
+            attempt: 1,
+            message: String::new(),
+        }
+    }
+    #[test]
+    fn active_hardware_request_precedes_queued_requests_without_becoming_failed() {
+        let broker = AgentPromptBroker::default();
+        let queued = broker
+            .begin_prompt(&prompt(SshAgentPromptPhase::SecurityKeyQueued))
+            .unwrap();
+        let active = broker
+            .begin_prompt(&prompt(SshAgentPromptPhase::SecurityKeyQueued))
+            .unwrap();
+        active
+            .update_pending(&prompt(SshAgentPromptPhase::SecurityKeyTouch))
+            .unwrap();
+        assert!(broker.has_ready());
+        let visible = broker.pop_pending().unwrap();
+        assert_eq!(
+            visible.snapshot().prompt.phase,
+            SshAgentPromptPhase::SecurityKeyTouch
+        );
+        assert_eq!(visible.snapshot().state, AgentPromptState::Pending);
+        assert!(active.try_action().unwrap().is_none());
+        visible
+            .response_tx
+            .send(SshAgentPromptAction::Cancel)
+            .unwrap();
+        assert_eq!(
+            active.try_action().unwrap(),
+            Some(SshAgentPromptAction::Cancel)
+        );
+        active.finish();
+        assert!(visible.is_resolved());
+        let visible_queued = broker.pop_pending().unwrap();
+        queued.finish();
+        assert!(visible_queued.is_resolved());
+        assert!(!broker.has_pending());
+    }
+
+    #[test]
+    fn closing_hardware_prompt_cancels_its_operation_and_finish_is_idempotent() {
+        let broker = AgentPromptBroker::default();
+        let request = broker
+            .begin_prompt(&prompt(SshAgentPromptPhase::SecurityKeyTouch))
+            .unwrap();
+        drop(broker.pop_pending().unwrap());
+        assert_eq!(
+            request.try_action().unwrap(),
+            Some(SshAgentPromptAction::Cancel)
+        );
+        request.finish();
+        request.finish();
+        assert!(!broker.has_pending());
+    }
+}

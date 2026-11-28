@@ -4254,6 +4254,15 @@
     "keywordHighlightMatchOptions": "Opções de correspondência"
   },
   "sshAuth": {
+    "securityKeyTitle": "Autenticação com chave de segurança",
+    "securityKeyQueued": "Aguardando a conclusão de outra operação com chave de segurança.",
+    "securityKeyTouch": "Conecte e toque na chave de segurança para confirmar. Se houver várias, toque na que deseja usar.",
+    "securityKeySystem": "Conclua a verificação na janela Segurança do Windows.",
+    "securityKeyPin": "PIN da chave de segurança",
+    "securityKeyPinRequired": "Digite o PIN do dispositivo. Ele é diferente da senha do arquivo da chave e não será salvo.",
+    "securityKeyPinInvalid": "PIN incorreto. Digite novamente ou cancele para evitar bloquear o dispositivo.",
+    "securityKeyImportHelp": "Arquivos OpenSSH ED25519-SK e ECDSA-SK contêm referências a chaves físicas. A conexão exige o dispositivo correspondente. A senha do arquivo e o PIN são independentes.",
+    "securityKeyForwardingHelp": "Chaves físicas salvas são usadas apenas na autenticação de conexões e não são expostas pelo encaminhamento de agente.",
     "authenticationMethod": "Método de autenticação",
     "catalogLoadFailed": "Não foi possível carregar as credenciais salvas. Atualize para tentar novamente.",
     "editKey": "Editar chave",

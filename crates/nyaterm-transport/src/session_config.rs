@@ -347,6 +347,7 @@ pub struct SshSessionConfig {
     pub username: String,
     pub password: Option<SecretString>,
     pub key_auth: Option<SshKeyAuthConfig>,
+    pub security_keys: Option<Arc<crate::security_key::SecurityKeyService>>,
     pub agent_auth: bool,
     pub agent_endpoint: SshAgentEndpoint,
     /// Only interactive terminal sessions request forwarding. Shared configs
@@ -637,6 +638,7 @@ pub trait SshHostKeyVerifier: Send + Sync {
 pub enum SshCredentialPromptKind {
     Password,
     KeyPassphrase,
+    SecurityKeyPin,
     KeyboardInteractive,
 }
 
@@ -649,6 +651,8 @@ pub enum SshCredentialPromptReason {
     PublickeyRejected,
     KeyRejectedPasswordFallback,
     DockerElevation,
+    SecurityKeyPinRequired,
+    SecurityKeyPinInvalid,
     KeyPassphraseRequired,
     KeyPassphraseRejected,
     KeyboardInteractive,
@@ -751,6 +755,9 @@ pub trait SshCredentialProvider: Send + Sync {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SshAgentPromptPhase {
+    SecurityKeyQueued,
+    SecurityKeyTouch,
+    SecurityKeySystem,
     Connect,
     ListIdentities,
     Sign,
@@ -775,6 +782,21 @@ pub enum SshAgentPromptAction {
 
 /// 可在签名过程中更新状态的 SSH Agent 认证提示。
 pub trait SshAgentPromptRequest: Send + Sync {
+    /// Nonblocking action polling for native hardware operations.
+    fn try_action(&self) -> Result<Option<SshAgentPromptAction>, String> {
+        Ok(None)
+    }
+
+    /// Update a pending operation without turning it into a retryable failure.
+    fn update_pending(&self, _prompt: &SshAgentPrompt) -> Result<(), String> {
+        Ok(())
+    }
+
+    /// Opaque native owner, supplied by desktop when the prompt is displayed.
+    fn native_parent_window(&self) -> Option<usize> {
+        None
+    }
+
     /// 阻塞等待 UI 提供操作，或直到提示超时。
     fn wait_action(&self) -> Result<SshAgentPromptAction, String>;
 
@@ -831,6 +853,7 @@ impl Default for SshSessionConfig {
             username: "root".to_string(),
             password: None,
             key_auth: None,
+            security_keys: None,
             agent_auth: false,
             agent_endpoint: SshAgentEndpoint::Auto,
             agent_forwarding: false,

@@ -10445,3 +10445,62 @@ fn mcp_client_preferences_round_trip_and_preserve_future_settings() {
     drop(store);
     std::fs::remove_dir_all(dir).ok();
 }
+
+#[test]
+fn security_key_reference_survives_encrypted_storage_sync_and_backups() {
+    use ssh_key::{LineEnding, PrivateKey, private::SkEd25519, public};
+    let source_dir = unique_temp_dir("security-key-source");
+    let public_key = public::Ed25519PublicKey([37; 32]);
+    let reference = PrivateKey::from(
+        SkEd25519::new(
+            public::SkEd25519::new(public_key, "ssh:compatibility-fixture"),
+            0x05,
+            vec![17; 32],
+        )
+        .unwrap(),
+    );
+    let encoded = reference
+        .to_openssh(LineEnding::LF)
+        .unwrap()
+        .trim()
+        .to_string();
+    let source = ConnectionStore::open(&source_dir).unwrap();
+    let id = source
+        .save_ssh_key(SshKey {
+            id: "hardware-fixture".into(),
+            sort_order: 0,
+            name: "Hardware fixture".into(),
+            key: Some(encoded.clone().into()),
+            cert: None,
+            passphrase: None,
+            key_file_path: None,
+            cert_file_path: None,
+            has_key_data: false,
+            has_cert_data: false,
+        })
+        .unwrap();
+    let assert_reference = |store: &ConnectionStore| {
+        let key = store.load_decrypted_ssh_key_by_id(&id).unwrap().unwrap();
+        assert_eq!(key.key_data.as_deref(), Some(encoded.as_str()));
+        assert!(key.passphrase.is_none());
+        let parsed = PrivateKey::from_openssh(key.key_data.as_deref().unwrap()).unwrap();
+        assert_eq!(parsed.key_data(), reference.key_data());
+    };
+    assert_reference(&source);
+    for kind in [PortableSnapshotKind::Backup, PortableSnapshotKind::Sync] {
+        let mut snapshot = source
+            .build_raw_portable_snapshot(kind, "device", "test")
+            .unwrap();
+        snapshot.recalculate_hash().unwrap();
+        let target = ConnectionStore::open(unique_temp_dir("security-key-snapshot")).unwrap();
+        target.apply_raw_portable_snapshot(&snapshot).unwrap();
+        assert_reference(&target);
+    }
+    drop(source);
+    assert_reference(&ConnectionStore::open(&source_dir).unwrap());
+    let backup_path = unique_temp_dir("security-key-backup").join("settings.redb");
+    let target_dir = unique_temp_dir("security-key-restored");
+    ConnectionStore::export_config_database(&source_dir, None, &backup_path).unwrap();
+    ConnectionStore::import_config_database(&target_dir, None, &backup_path).unwrap();
+    assert_reference(&ConnectionStore::open(&target_dir).unwrap());
+}

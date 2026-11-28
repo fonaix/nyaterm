@@ -22,6 +22,7 @@ enum Scenario {
     Reject,
     PasswordFallback,
     KeyOnly,
+    RejectKeyOffer,
     SwitchKey,
     KeyOtp,
     KeyOtpReject,
@@ -120,6 +121,22 @@ impl server::Handler for Peer {
         _: &str,
         _: russh::server::PublicKeyOffer<'_>,
     ) -> Result<server::Auth, Self::Error> {
+        Ok(if matches!(self.scenario, Scenario::RejectKeyOffer) {
+            reject(&[MethodKind::PublicKey], false)
+        } else {
+            server::Auth::Accept
+        })
+    }
+    async fn auth_openssh_certificate(
+        &mut self,
+        _: &str,
+        certificate: &russh::keys::Certificate,
+    ) -> Result<server::Auth, Self::Error> {
+        let ca = key().fingerprint(russh::keys::HashAlg::Sha256);
+        if certificate.validate_at(1, [&ca]).is_err() {
+            return Ok(server::Auth::reject());
+        }
+        self.seen.lock().unwrap().push("certificate".into());
         Ok(server::Auth::Accept)
     }
     async fn auth_publickey(
@@ -944,3 +961,96 @@ async fn unlocked_key_passphrase_remains_eligible_after_additional_password_retr
 
 #[cfg(any(unix, windows))]
 mod fake_agent;
+
+#[tokio::test]
+async fn native_security_keys_complete_publickey_and_additional_password_once() {
+    for ecdsa in [false, true] {
+        let (key, service, signatures) = crate::security_key::tests::hardware_fixture(ecdsa);
+        let config = SshSessionConfig {
+            key_auth: Some(SshKeyAuthConfig {
+                key_data: key
+                    .to_openssh(russh::keys::ssh_key::LineEnding::LF)
+                    .unwrap()
+                    .to_string()
+                    .into(),
+                cert_data: None,
+                passphrase: None,
+            }),
+            security_keys: Some(service),
+            ..Default::default()
+        };
+        let (success, _, seen) = run_with_config(
+            Scenario::KeyPassword,
+            config,
+            vec![password("wrong"), password("new")],
+            true,
+            None,
+        )
+        .await;
+        assert!(success, "hardware authentication failed: {seen:?}");
+        assert_eq!(signatures.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(
+            seen.iter().filter(|event| event.as_str() == "key").count(),
+            1
+        );
+    }
+}
+
+#[tokio::test]
+async fn security_key_certificate_authentication_uses_hardware_signer() {
+    for ecdsa in [false, true] {
+        let (reference, service, signatures) = crate::security_key::tests::hardware_fixture(ecdsa);
+        let mut builder = russh::keys::ssh_key::certificate::Builder::new_with_random_nonce(
+            &mut rand::rng(),
+            reference.public_key().clone(),
+            0,
+            u64::MAX,
+        )
+        .unwrap();
+        builder
+            .cert_type(russh::keys::ssh_key::certificate::CertType::User)
+            .unwrap();
+        builder.valid_principal("test").unwrap();
+        let certificate = builder.sign(&key()).unwrap().to_openssh().unwrap();
+        let config = SshSessionConfig {
+            key_auth: Some(SshKeyAuthConfig {
+                key_data: reference
+                    .to_openssh(russh::keys::ssh_key::LineEnding::LF)
+                    .unwrap()
+                    .to_string()
+                    .into(),
+                cert_data: Some(certificate.into()),
+                passphrase: None,
+            }),
+            security_keys: Some(service),
+            ..Default::default()
+        };
+        let (success, _, seen) =
+            run_with_config(Scenario::KeyOnly, config, vec![], false, None).await;
+        assert!(success, "certificate failed: {seen:?}");
+        assert!(seen.iter().any(|entry| entry == "certificate"));
+        assert_eq!(signatures.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+}
+
+#[tokio::test]
+async fn rejected_security_key_offer_does_not_access_the_device() {
+    let (reference, service, signatures) = crate::security_key::tests::hardware_fixture(false);
+    let config = SshSessionConfig {
+        key_auth: Some(SshKeyAuthConfig {
+            key_data: reference
+                .to_openssh(russh::keys::ssh_key::LineEnding::LF)
+                .unwrap()
+                .to_string()
+                .into(),
+            cert_data: None,
+            passphrase: None,
+        }),
+        security_keys: Some(service),
+        ..Default::default()
+    };
+    let (success, _, _) =
+        run_with_config(Scenario::RejectKeyOffer, config, vec![], false, None).await;
+    assert!(!success);
+    assert_eq!(signatures.load(std::sync::atomic::Ordering::SeqCst), 0);
+}

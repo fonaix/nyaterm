@@ -12,6 +12,7 @@ use self::ssh_connections::SshConnectionPool;
 #[derive(Clone)]
 pub struct SessionHub {
     manager: Arc<SessionManager>,
+    security_keys: Arc<nyaterm_transport::security_key::SecurityKeyService>,
     ssh_connections: SshConnectionPool,
     android_devices: nyaterm_android::devices::SharedDeviceService,
 }
@@ -26,6 +27,7 @@ impl SessionHub {
                     )),
                 },
             )),
+            security_keys: Default::default(),
             ssh_connections: SshConnectionPool::default(),
             android_devices: Default::default(),
         }
@@ -33,6 +35,10 @@ impl SessionHub {
 
     pub(crate) fn ssh_connections(&self) -> SshConnectionPool {
         self.ssh_connections.clone()
+    }
+
+    pub(crate) fn security_keys(&self) -> Arc<nyaterm_transport::security_key::SecurityKeyService> {
+        self.security_keys.clone()
     }
 
     pub fn manager(&self) -> Arc<SessionManager> {

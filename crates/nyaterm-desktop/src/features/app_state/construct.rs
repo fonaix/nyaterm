@@ -71,6 +71,7 @@ impl NyaTermApp {
         let session_manager = session_hub.manager();
         let android_devices = session_hub.android_devices();
         let ssh_connections = session_hub.ssh_connections();
+        let security_keys = session_hub.security_keys();
         nyaterm_core::warm_terminal_input_tracker();
         let NyaTermStoreClients {
             ui: store_ui,
@@ -464,6 +465,7 @@ impl NyaTermApp {
             activation: Default::default(),
             session: SessionFeatureState::new(
                 session_manager,
+                security_keys,
                 ssh_connections,
                 session_event_bridge,
                 otp_provider,

@@ -82,6 +82,7 @@ fn test_config() -> SshSessionConfig {
         host_key_verifier: Some(Arc::new(AcceptEphemeralHostKey)),
         credential_provider: None::<Arc<dyn SshCredentialProvider>>,
         agent_prompt_provider: None,
+        security_keys: None,
         otp_provider: None::<Arc<dyn SshOtpProvider>>,
     }
 }

@@ -4254,6 +4254,15 @@
     "keywordHighlightMatchOptions": "일치 옵션"
   },
   "sshAuth": {
+    "securityKeyTitle": "보안 키 인증",
+    "securityKeyQueued": "다른 보안 키 작업이 끝나기를 기다리는 중입니다.",
+    "securityKeyTouch": "보안 키를 연결하고 터치하세요. 여러 키가 연결된 경우 사용할 키를 터치하세요.",
+    "securityKeySystem": "Windows 보안 대화 상자에서 인증을 완료하세요.",
+    "securityKeyPin": "보안 키 PIN",
+    "securityKeyPinRequired": "장치 PIN을 입력하세요. 키 파일 암호와 다르며 저장되지 않습니다.",
+    "securityKeyPinInvalid": "장치 PIN이 올바르지 않습니다. 다시 입력하거나 잠금 방지를 위해 취소하세요.",
+    "securityKeyImportHelp": "OpenSSH ED25519-SK 및 ECDSA-SK 파일은 하드웨어 키 참조를 저장합니다. 연결하려면 해당 장치가 필요합니다. 파일 암호와 장치 PIN은 별개입니다.",
+    "securityKeyForwardingHelp": "저장된 하드웨어 키는 연결 인증에만 사용되며 에이전트 전달로 제공되지 않습니다.",
     "authenticationMethod": "인증 방식",
     "catalogLoadFailed": "저장된 자격 증명을 불러올 수 없습니다. 새로 고침하여 다시 시도하세요.",
     "editKey": "키 편집",

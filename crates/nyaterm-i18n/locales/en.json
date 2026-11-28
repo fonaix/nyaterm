@@ -4254,6 +4254,15 @@
     "keywordHighlightMatchOptions": "Match options"
   },
   "sshAuth": {
+    "securityKeyTitle": "Security key authentication",
+    "securityKeyQueued": "Waiting for another security key operation to finish.",
+    "securityKeyTouch": "Insert your security key and touch it to confirm. If several keys are connected, touch the one you want to use.",
+    "securityKeySystem": "Complete verification in the Windows Security dialog.",
+    "securityKeyPin": "Security key PIN",
+    "securityKeyPinRequired": "Enter the device PIN. It is not the key file passphrase and will not be saved.",
+    "securityKeyPinInvalid": "Incorrect device PIN. Enter it again, or cancel to avoid locking the device.",
+    "securityKeyImportHelp": "OpenSSH ED25519-SK and ECDSA-SK files contain hardware key references. Import the reference and connect with the matching device. The file passphrase and device PIN are separate.",
+    "securityKeyForwardingHelp": "Saved hardware keys are available for connection authentication only; they are not exposed through agent forwarding.",
     "authenticationMethod": "Authentication method",
     "catalogLoadFailed": "Could not load saved credentials. Refresh to retry.",
     "editKey": "Edit key",

@@ -179,9 +179,12 @@ impl NyaTermApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(state) = self.session.prompts.take_credential() else {
+        let Some(mut state) = self.session.prompts.take_credential() else {
             return;
         };
+        if state.prompt.kind == nyaterm_transport::SshCredentialPromptKind::SecurityKeyPin {
+            zeroize::Zeroize::zeroize(&mut state.value);
+        }
         let host = credential_prompt_target(&state.prompt);
         let _ = state.response_tx.send(None);
         self.forget_text_inputs("ssh.credential.");
@@ -480,7 +483,32 @@ impl NyaTermApp {
                 let updated = cx.update(|window, cx| {
                     app.update(cx, |this, cx| {
                         this.session.prompts.arm_wake();
-                        let dirty = this.session.prompts.clear_cancelled_attempt_prompts()
+                        let old_pin = this
+                            .session
+                            .prompts
+                            .active_credential()
+                            .filter(|state| {
+                                state.prompt.kind
+                                    == nyaterm_transport::SshCredentialPromptKind::SecurityKeyPin
+                            })
+                            .map(|state| state.id.clone());
+                        let cancelled = this.session.prompts.clear_cancelled_attempt_prompts();
+                        let pin_dismissed = old_pin.as_ref().is_some_and(|id| {
+                            this.session
+                                .prompts
+                                .active_credential()
+                                .is_none_or(|state| &state.id != id)
+                        });
+                        if let Some(id) = old_pin
+                            && this
+                                .session
+                                .prompts
+                                .active_credential()
+                                .is_none_or(|state| state.id != id)
+                        {
+                            this.forget_text_inputs(&credential_text_input_id(&id));
+                        }
+                        let dirty = cancelled
                             | this.drain_host_key_prompts()
                             | this.drain_agent_prompts()
                             | this.drain_credential_prompts(cx);
@@ -500,6 +528,13 @@ impl NyaTermApp {
                         // A keyboard-interactive TOTP prompt can only reach the screen
                         // through an activation, so this is where its clock starts.
                         this.ensure_keyboard_interactive_totp_clock(cx);
+                        if pin_dismissed {
+                            if this.session.prompts.has_active_ssh_auth() {
+                                window.focus(this.session.prompt_credential_focus(), cx);
+                            } else {
+                                this.focus_active_workspace_surface(window, cx);
+                            }
+                        }
                         dirty
                     });
                 });

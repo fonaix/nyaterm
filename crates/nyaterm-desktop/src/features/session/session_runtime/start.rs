@@ -62,6 +62,7 @@ pub(in crate::features) struct SshSessionConfigBuildContext {
     pub(in crate::features) host_key_prompts: Arc<HostKeyPromptBroker>,
     pub(in crate::features) credential_prompts: Arc<CredentialPromptBroker>,
     pub(in crate::features) agent_prompts: Arc<AgentPromptBroker>,
+    pub(in crate::features) security_keys: Arc<nyaterm_transport::security_key::SecurityKeyService>,
     pub(in crate::features) otp_provider: Arc<NativeOtpProvider>,
 }
 
@@ -1359,6 +1360,7 @@ impl NyaTermApp {
             host_key_prompts: self.session.prompts.host_key_broker(),
             credential_prompts: self.session.prompts.credential_broker(),
             agent_prompts: self.session.prompts.agent_broker(),
+            security_keys: self.session.security_keys.clone(),
             otp_provider: self.session.prompts.otp_provider(),
         }
     }
@@ -1517,6 +1519,7 @@ pub(in crate::features) fn build_ssh_session_config_with_context(
         username,
         password,
         key_auth: key_auth.clone(),
+        security_keys: Some(context.security_keys.clone()),
         agent_auth: auth.mode == "agent",
         agent_endpoint: match normalize_ssh_agent_endpoint(auth_agent_endpoint.unwrap_or_default())
         {
@@ -1964,6 +1967,7 @@ mod tests {
             host_key_prompts: Arc::new(HostKeyPromptBroker::default()),
             credential_prompts: Arc::new(CredentialPromptBroker::default()),
             agent_prompts: Arc::new(AgentPromptBroker::default()),
+            security_keys: Default::default(),
             otp_provider: Arc::new(NativeOtpProvider::new(store)),
         }
     }
@@ -2275,7 +2279,15 @@ mod tests {
                 let parent =
                     build_ssh_session_config_with_context(&parent, &mut Vec::new(), &context)
                         .unwrap();
+                assert!(Arc::ptr_eq(
+                    parent.security_keys.as_ref().unwrap(),
+                    &context.security_keys,
+                ));
                 let jump = parent.proxy_jump.unwrap();
+                assert!(Arc::ptr_eq(
+                    jump.security_keys.as_ref().unwrap(),
+                    &context.security_keys,
+                ));
                 assert_eq!(
                     jump.password.as_deref(),
                     (mode == "password").then_some("fixture-password")

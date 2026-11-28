@@ -584,6 +584,11 @@ fn load_stored_identities(
             tracing::debug!("Stored key passphrase is unavailable for Agent forwarding");
             continue;
         };
+        // Native hardware signing is scoped to an explicit local connection.
+        // Do not advertise credentials that this forwarding broker cannot sign.
+        if crate::security_key::is_security_key(&private_key) {
+            continue;
+        }
         let private_key = Arc::new(private_key);
         let (blob, comment) = match key.cert_data.as_deref() {
             Some(cert) => match russh::keys::Certificate::from_openssh(cert) {
@@ -1304,5 +1309,46 @@ mod tests {
 
         broker.await.unwrap().unwrap();
         assert_eq!(loads.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[cfg(test)]
+mod hardware_forwarding_tests {
+    use super::load_stored_identities;
+    use crate::{SshAgentStoredKey, SshAgentStoredKeyProvider, SshAgentStoredKeySnapshot};
+    use std::sync::Arc;
+
+    struct Provider {
+        key: String,
+    }
+    impl SshAgentStoredKeyProvider for Provider {
+        fn revision(&self) -> Result<u64, String> {
+            Ok(1)
+        }
+        fn load_snapshot(&self) -> Result<SshAgentStoredKeySnapshot, String> {
+            Ok(SshAgentStoredKeySnapshot {
+                revision: 1,
+                keys: vec![SshAgentStoredKey {
+                    key_data: self.key.clone().into(),
+                    cert_data: None,
+                    passphrase: None,
+                    comment: "hardware fixture".into(),
+                }],
+            })
+        }
+    }
+    #[test]
+    fn hardware_references_are_not_advertised_as_software_signing_identities() {
+        for ecdsa in [false, true] {
+            let (key, _, _) = crate::security_key::tests::hardware_fixture(ecdsa);
+            let provider = Arc::new(Provider {
+                key: key
+                    .to_openssh(russh::keys::ssh_key::LineEnding::LF)
+                    .unwrap()
+                    .to_string(),
+            });
+            let (_, identities) = load_stored_identities(provider).unwrap();
+            assert!(identities.is_empty());
+        }
     }
 }

@@ -32,26 +32,57 @@ impl NyaTermApp {
         let retryable = !pending;
         let cancel_id = request.id.clone();
         let retry_id = request.id.clone();
-        let title = if pending {
+        let hardware = matches!(
+            snapshot.prompt.phase,
+            SshAgentPromptPhase::SecurityKeyQueued
+                | SshAgentPromptPhase::SecurityKeyTouch
+                | SshAgentPromptPhase::SecurityKeySystem
+        );
+        let title = if hardware {
+            t!("sshAuth.securityKeyTitle")
+        } else if pending {
             t!("sshAuth.agentWaitingTitle")
         } else {
             t!("sshAuth.agentFailedTitle")
         };
-        let phase = if pending {
-            t!("sshAuth.agentApprovalWaiting")
-        } else {
-            match snapshot.prompt.phase {
-                SshAgentPromptPhase::Connect => t!("sshAuth.agentConnectFailed"),
-                SshAgentPromptPhase::ListIdentities => t!("sshAuth.agentIdentitiesFailed"),
-                SshAgentPromptPhase::Sign => t!("sshAuth.agentApprovalRequired"),
-            }
+        let phase = match snapshot.prompt.phase {
+            SshAgentPromptPhase::SecurityKeyQueued => t!("sshAuth.securityKeyQueued"),
+            SshAgentPromptPhase::SecurityKeyTouch => t!("sshAuth.securityKeyTouch"),
+            SshAgentPromptPhase::SecurityKeySystem => t!("sshAuth.securityKeySystem"),
+            _ if pending => t!("sshAuth.agentApprovalWaiting"),
+            SshAgentPromptPhase::Connect => t!("sshAuth.agentConnectFailed"),
+            SshAgentPromptPhase::ListIdentities => t!("sshAuth.agentIdentitiesFailed"),
+            SshAgentPromptPhase::Sign => t!("sshAuth.agentApprovalRequired"),
         };
+        let native_parent = request.native_parent.clone();
         let target = format!(
             "{}@{}:{}",
             snapshot.prompt.username, snapshot.prompt.host, snapshot.prompt.port
         );
         div()
             .id(SharedString::from(format!("agent-dialog-{}", request.id)))
+            .child(
+                gpui::canvas(
+                    move |_, window, _| {
+                        #[cfg(windows)]
+                        if let Ok(handle) =
+                            raw_window_handle::HasWindowHandle::window_handle(window)
+                            && let raw_window_handle::RawWindowHandle::Win32(handle) =
+                                handle.as_raw()
+                        {
+                            native_parent.store(
+                                handle.hwnd.get() as usize,
+                                std::sync::atomic::Ordering::Release,
+                            );
+                        }
+                        #[cfg(not(windows))]
+                        let _ = (&native_parent, window);
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .size_0(),
+            )
             .w_full()
             .rounded_md()
             .border_1()
@@ -269,6 +300,7 @@ impl NyaTermApp {
         let palette = self.theme_palette();
         let title = match prompt.prompt.kind {
             SshCredentialPromptKind::Password => t!("runtimePrompt.sshPassword"),
+            SshCredentialPromptKind::SecurityKeyPin => t!("sshAuth.securityKeyPin"),
             SshCredentialPromptKind::KeyPassphrase => t!("runtimePrompt.sshKeyPassphrase"),
             SshCredentialPromptKind::KeyboardInteractive => {
                 t!("runtimePrompt.sshVerification")
@@ -286,6 +318,10 @@ impl NyaTermApp {
                 t!("sshAuth.additionalPasswordRequired")
             }
             SshCredentialPromptReason::PasswordRejected => t!("sshAuth.passwordRejected"),
+            SshCredentialPromptReason::SecurityKeyPinRequired => {
+                t!("sshAuth.securityKeyPinRequired")
+            }
+            SshCredentialPromptReason::SecurityKeyPinInvalid => t!("sshAuth.securityKeyPinInvalid"),
             SshCredentialPromptReason::KeyPassphraseRequired => {
                 t!("sshAuth.keyPassphraseRequired")
             }

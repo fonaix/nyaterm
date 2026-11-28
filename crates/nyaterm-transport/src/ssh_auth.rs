@@ -707,6 +707,41 @@ async fn authenticate_ssh_key(
     let cert = cert_data
         .map(russh::keys::Certificate::from_openssh)
         .transpose()?;
+    if crate::security_key::is_security_key(&key) {
+        if let Some(cert) = &cert {
+            anyhow::ensure!(
+                cert.public_key() == key.public_key().key_data(),
+                "SSH certificate does not match the security key"
+            );
+        }
+        let service = config
+            .security_keys
+            .clone()
+            .ok_or(crate::security_key::SecurityKeyError::Unavailable)?;
+        let mut signer = crate::security_key::HardwareSigner {
+            config,
+            key: &key,
+            service,
+        };
+        return tokio::time::timeout(Duration::from_secs(300), async {
+            if let Some(cert) = cert {
+                handle
+                    .authenticate_certificate_with(config.username.clone(), cert, None, &mut signer)
+                    .await
+            } else {
+                handle
+                    .authenticate_publickey_with(
+                        config.username.clone(),
+                        key.public_key().clone(),
+                        None,
+                        &mut signer,
+                    )
+                    .await
+            }
+        })
+        .await
+        .map_err(|_| crate::security_key::SecurityKeyError::TimedOut)?;
+    }
     let result = if let Some(cert) = cert {
         tokio::time::timeout(
             Duration::from_secs(30),

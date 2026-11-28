@@ -181,6 +181,7 @@ fn main() -> anyhow::Result<()> {
 // This filter applies to every sink and cannot be relaxed by RUST_LOG.
 fn ai_log_target_allowed(metadata: &tracing::Metadata<'_>) -> bool {
     ![
+        "authenticator",
         "genai",
         "reqwest",
         "hyper",
