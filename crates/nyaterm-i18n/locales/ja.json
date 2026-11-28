@@ -4830,6 +4830,7 @@
     "connectionFailed": "リモートデスクトップの接続に失敗しました",
     "disconnected": "リモートデスクトップセッションが切断されました",
     "exitFullscreen": "全画面表示を終了",
+    "showingFullscreen": "このセッションは全画面で表示されています。",
     "fullscreen": "全画面表示",
     "presentedFingerprint": "提示されたフィンガープリント",
     "previousFingerprint": "以前に信頼したフィンガープリント",

@@ -25,6 +25,13 @@ use gpui::{
 use nyaterm_ui::child_window::shell::ChildWindowCloseHandler;
 use nyaterm_ui::{NyaWindowHandle, nya_root};
 
+mod toolbar;
+
+#[cfg(test)]
+mod tests;
+
+use toolbar::FullscreenToolbarState;
+
 use crate::features::{
     NyaTermApp,
     view_widgets::{child_window_root, focus_child_window_shell_if_idle},
@@ -62,6 +69,8 @@ struct RemoteDesktopFullscreenWindow {
     _surface_observation: Option<Subscription>,
     _activation_observation: Subscription,
     focused_once: bool,
+    toolbar: FullscreenToolbarState,
+    toolbar_hide_task: Option<gpui::Task<()>>,
 }
 
 impl RemoteDesktopFullscreenWindow {
@@ -84,6 +93,9 @@ impl RemoteDesktopFullscreenWindow {
             Some(cx.observe(&surface, |_, _, cx| cx.notify()))
         });
         let activation = cx.observe_window_activation(window, |this, window, cx| {
+            if !window.is_window_active() {
+                this.deactivate_toolbar(cx);
+            }
             if !window.is_window_active()
                 && let Some(app) = this.app.upgrade()
             {
@@ -98,7 +110,7 @@ impl RemoteDesktopFullscreenWindow {
                 });
             }
         });
-        Self {
+        let mut view = Self {
             app,
             session_id,
             shell_focus: cx.focus_handle(),
@@ -106,7 +118,11 @@ impl RemoteDesktopFullscreenWindow {
             _surface_observation: surface_observation,
             _activation_observation: activation,
             focused_once: false,
-        }
+            toolbar: FullscreenToolbarState::default(),
+            toolbar_hide_task: None,
+        };
+        view.initialize_toolbar(window, cx);
+        view
     }
 }
 
@@ -116,6 +132,10 @@ impl Render for RemoteDesktopFullscreenWindow {
             .app
             .read_with(cx, |app, _| {
                 app.is_remote_desktop_fullscreen(&self.session_id)
+                    // open_window renders once before its handle can be stored.
+                    && app.remote_desktop.fullscreen_window.is_none_or(|host| {
+                        gpui::AnyWindowHandle::from(host) == window.window_handle()
+                    })
             })
             .unwrap_or(false);
         if !still_owner {
@@ -131,9 +151,16 @@ impl Render for RemoteDesktopFullscreenWindow {
             .expect("fullscreen window outlives its app");
         let palette = app_entity.read(cx).theme_palette();
         let close_app = self.app.clone();
+        let close_session = self.session_id.clone();
         let on_close: ChildWindowCloseHandler = Rc::new(move |window, cx| {
             if let Some(app) = close_app.upgrade() {
-                app.update(cx, |app, cx| app.exit_remote_desktop_fullscreen(cx));
+                app.update(cx, |app, cx| {
+                    app.exit_remote_desktop_fullscreen_from_window(
+                        &close_session,
+                        window.window_handle(),
+                        cx,
+                    )
+                });
             }
             window.remove_window();
         });
@@ -148,30 +175,45 @@ impl Render for RemoteDesktopFullscreenWindow {
             window.focus(&focus, cx);
         }
 
+        let local_overlay = self.fullscreen_toolbar_input_bounds(window);
         let content = self
             .app
             .update(cx, |app, cx| {
                 app.prepare_remote_desktop_textures(&self.session_id, window);
-                app.remote_desktop_view_content(self.session_id.clone(), cx)
+                app.remote_desktop_view_content_with_local_overlay(
+                    self.session_id.clone(),
+                    local_overlay,
+                    cx,
+                )
             })
             .unwrap_or_else(|_| div().into_any_element());
 
+        let toolbar = self.fullscreen_toolbar(window, cx);
         child_window_root(&self.shell_focus, false, on_close)
+            .relative()
             .bg(rgb(palette.bg))
             .capture_key_down(cx.listener({
                 let session_id = self.session_id.clone();
-                move |this, event: &KeyDownEvent, _, cx| {
+                move |this, event: &KeyDownEvent, window, cx| {
                     if is_rdp_fullscreen_shortcut(&event.keystroke) {
                         if let Some(app) = this.app.upgrade() {
                             app.update(cx, |app, cx| {
-                                app.exit_remote_desktop_fullscreen_from_window(&session_id, cx)
+                                app.exit_remote_desktop_fullscreen_from_window(
+                                    &session_id,
+                                    window.window_handle(),
+                                    cx,
+                                )
                             });
                         }
                         cx.stop_propagation();
                     }
                 }
             }))
-            .child(content)
+            .child(div().flex_1().min_h_0().relative().child(content))
+            .child(toolbar)
+            // Register the capture observer after controls so they can clear
+            // their pressed state before we consume a mouse-up outside the bar.
+            .child(self.fullscreen_toolbar_pointer_observer(cx))
             .into_any_element()
     }
 }
@@ -325,15 +367,21 @@ impl NyaTermApp {
         });
     }
 
-    /// Exit fullscreen from inside the detached window (shortcut / close).
-    /// Only acts when `session_id` still owns fullscreen, so a stale window
-    /// cannot tear down a newer fullscreen session.
+    /// Exit the specified detached fullscreen host (button / shortcut / close).
+    /// Both identifiers must still match: the same session can have reopened
+    /// fullscreen since an old window or main-window button was rendered.
     pub(in crate::features) fn exit_remote_desktop_fullscreen_from_window(
         &mut self,
         session_id: &str,
+        host: gpui::AnyWindowHandle,
         cx: &mut Context<Self>,
     ) {
-        if self.is_remote_desktop_fullscreen(session_id) {
+        if self.is_remote_desktop_fullscreen(session_id)
+            && self
+                .remote_desktop
+                .fullscreen_window
+                .is_some_and(|current| gpui::AnyWindowHandle::from(current) == host)
+        {
             self.exit_remote_desktop_fullscreen(cx);
         }
     }
@@ -405,10 +453,14 @@ fn open_fullscreen_window_now(app: Entity<NyaTermApp>, session_id: String, cx: &
     let view_session = session_id.clone();
     let close_session = session_id.clone();
     let result: anyhow::Result<NyaWindowHandle> = cx.open_window(options, move |window, cx| {
-        window.on_window_should_close(cx, move |_, cx| {
+        window.on_window_should_close(cx, move |window, cx| {
             if let Some(app) = window_app.upgrade() {
                 app.update(cx, |app, cx| {
-                    app.exit_remote_desktop_fullscreen_from_window(&close_session, cx)
+                    app.exit_remote_desktop_fullscreen_from_window(
+                        &close_session,
+                        window.window_handle(),
+                        cx,
+                    )
                 });
             }
             // Let the window close; state is already cleared.

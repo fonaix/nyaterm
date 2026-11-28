@@ -4830,6 +4830,7 @@
     "connectionFailed": "遠端桌面連線失敗",
     "disconnected": "遠端桌面會話已斷開",
     "exitFullscreen": "結束全螢幕",
+    "showingFullscreen": "此工作階段正在全螢幕顯示。",
     "fullscreen": "全螢幕",
     "presentedFingerprint": "目前證書指紋",
     "previousFingerprint": "此前信任的證書指紋",

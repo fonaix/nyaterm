@@ -47,6 +47,15 @@ impl NyaTermApp {
         session_id: String,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
+        self.remote_desktop_view_content_with_local_overlay(session_id, None, cx)
+    }
+
+    pub(super) fn remote_desktop_view_content_with_local_overlay(
+        &mut self,
+        session_id: String,
+        local_overlay: Option<Bounds<Pixels>>,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
         let palette = self.theme_palette();
         let temporary_spice = self.session.metadata(&session_id).is_some_and(|metadata| matches!(
             &metadata.launch_config, crate::models::SessionLaunchConfig::Spice(config)
@@ -619,6 +628,12 @@ impl NyaTermApp {
             .on_mouse_up_out(
                 MouseButton::Left,
                 cx.listener(move |this, event: &MouseUpEvent, _, cx| {
+                    // Outside-release handlers run in capture, before overlay
+                    // buttons. The fullscreen owner releases held inputs when
+                    // entering its toolbar; local clicks must not reach RDP.
+                    if local_overlay.is_some_and(|bounds| bounds.contains(&event.position)) {
+                        return;
+                    }
                     if this.send_rdp_pointer(
                         &left_up_out_id,
                         event.position,
@@ -633,6 +648,9 @@ impl NyaTermApp {
             .on_mouse_up_out(
                 MouseButton::Right,
                 cx.listener(move |this, event: &MouseUpEvent, _, cx| {
+                    if local_overlay.is_some_and(|bounds| bounds.contains(&event.position)) {
+                        return;
+                    }
                     if this.send_rdp_pointer(
                         &right_up_out_id,
                         event.position,
@@ -647,6 +665,9 @@ impl NyaTermApp {
             .on_mouse_up_out(
                 MouseButton::Middle,
                 cx.listener(move |this, event: &MouseUpEvent, _, cx| {
+                    if local_overlay.is_some_and(|bounds| bounds.contains(&event.position)) {
+                        return;
+                    }
                     if this.send_rdp_pointer(
                         &middle_up_out_id,
                         event.position,

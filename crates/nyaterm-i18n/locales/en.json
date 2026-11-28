@@ -4830,6 +4830,7 @@
     "connectionFailed": "Remote Desktop connection failed",
     "disconnected": "Remote Desktop session is disconnected",
     "exitFullscreen": "Exit Full Screen",
+    "showingFullscreen": "This session is displayed in full screen.",
     "fullscreen": "Full Screen",
     "presentedFingerprint": "Presented fingerprint",
     "previousFingerprint": "Previously trusted fingerprint",

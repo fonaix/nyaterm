@@ -4830,6 +4830,7 @@
     "connectionFailed": "원격 데스크톱 연결에 실패했습니다",
     "disconnected": "원격 데스크톱 세션의 연결이 끊어졌습니다",
     "exitFullscreen": "전체 화면 종료",
+    "showingFullscreen": "이 세션은 전체 화면으로 표시되고 있습니다.",
     "fullscreen": "전체 화면",
     "presentedFingerprint": "제시된 지문",
     "previousFingerprint": "이전에 신뢰한 지문",

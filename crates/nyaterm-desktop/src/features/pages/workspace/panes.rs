@@ -1,6 +1,7 @@
 use rust_i18n::t;
 
 use gpui::{Context, FontWeight, IntoElement, SharedString, div, prelude::*, px, relative, rgb};
+use nyaterm_ui::NyaButton;
 
 use super::super::super::NyaTermApp;
 use crate::features::formatting::short_id;
@@ -73,6 +74,37 @@ impl NyaTermApp {
         session_id: String,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
+        if self.is_remote_desktop_detached_fullscreen(&session_id)
+            && let Some(host) = self.remote_desktop_fullscreen_window()
+        {
+            let palette = self.theme_palette();
+            return div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .items_center()
+                .justify_center()
+                .gap_3()
+                .px_4()
+                .text_center()
+                .text_color(rgb(palette.text_muted))
+                .child(t!("remoteDesktop.showingFullscreen"))
+                .child(
+                    NyaButton::new(
+                        format!("rdp-return-from-fullscreen-{session_id}"),
+                        t!("remoteDesktop.exitFullscreen"),
+                    )
+                    .icon("icons/session/exit-fullscreen.svg")
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.exit_remote_desktop_fullscreen_from_window(
+                            &session_id,
+                            host.into(),
+                            cx,
+                        );
+                    })),
+                )
+                .into_any_element();
+        }
         let android_view = matches!(
             self.android.kind(&session_id),
             Some(
@@ -102,16 +134,9 @@ impl NyaTermApp {
         let content = if android_view {
             self.android_view(session_id.clone(), cx)
         } else if self.remote_desktop.is_session(&session_id) {
-            // An IronRDP session in its detached fullscreen window is rendered
-            // there. Rendering it here too would fight over the single viewport
-            // and the window-bound dynamic texture. ActiveX keeps its COM child
-            // on this window, so it still needs the normal view (and viewport)
-            // while the main window is natively fullscreen.
-            if self.is_remote_desktop_detached_fullscreen(&session_id) {
-                div().size_full().into_any_element()
-            } else {
-                self.remote_desktop_view(session_id.clone(), cx)
-            }
+            // Detached fullscreen is handled above, including while reconnecting.
+            // ActiveX remains on this window and still needs its normal viewport.
+            self.remote_desktop_view(session_id.clone(), cx)
         } else if self.session_is_sftp_only(&session_id) {
             self.sftp_session_content(&session_id)
         } else {

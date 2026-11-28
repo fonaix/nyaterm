@@ -4830,6 +4830,7 @@
     "connectionFailed": "Falha na conexão da área de trabalho remota",
     "disconnected": "A sessão da Área de Trabalho Remota está desconectada",
     "exitFullscreen": "Sair da tela inteira",
+    "showingFullscreen": "Esta sessão está sendo exibida em tela cheia.",
     "fullscreen": "Tela cheia",
     "presentedFingerprint": "Impressão digital apresentada",
     "previousFingerprint": "Impressão digital anteriormente confiável",

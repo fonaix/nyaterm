@@ -4830,6 +4830,7 @@
     "connectionFailed": "Échec de la connexion au bureau à distance",
     "disconnected": "La session de bureau à distance est déconnectée",
     "exitFullscreen": "Quitter le plein écran",
+    "showingFullscreen": "Cette session est affichée en plein écran.",
     "fullscreen": "Plein écran",
     "presentedFingerprint": "Empreinte présentée",
     "previousFingerprint": "Empreinte précédemment approuvée",
